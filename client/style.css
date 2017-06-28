@@ -15,11 +15,15 @@
 }
 
 .square.select {
-	background-color: #AAA;
+	background-color: #E00;
 }
 
 .square.last_play {
-	opacity: #0EE;
+	background-color: #0EE;
+}
+
+.square.select.last_play {
+	background-color: #E0E;
 }
 
 .row {
@@ -37,6 +41,10 @@
 
 .invisible {
 	display: none !important;
+}
+
+.t0 {
+	background-color: #000;
 }
 
 .t1 {
@@ -61,8 +69,4 @@
 
 .t6 {
 	background-color: #F0F;
-}
-
-.t7 {
-	background-color: #000;
 }

@@ -16,8 +16,10 @@
 					Connect using key:
 				</td>
 				<td>
-					<input id="player_hash" type="text" placeholder="key"> 
-					<input type="submit" value="Connect" onclick="joinGame();"><br>
+					<form onsubmit="joinGame();return false;">
+						<input id="player_hash" type="text" placeholder="key"> 
+						<input type="submit" value="Connect">
+					</form>
 				</td>
 			</tr>
 			<tr>
@@ -26,19 +28,21 @@
 				</td>
 				<td>
 					<input type="submit" value="Create" onclick="createGame();">
-					<span id="create_id"></span>
 				</td>
 			</tr>
 		</table>
 	</div>
+	<div id="connection_info"></div>
 	<div id="game_space" class="invisible">
-		<h4 id="player_display"></h4>
+		<div id="player_display"></div>
 		<div id="turn_display"></div>
 		<div id="board_container"></div>
+		<div id="status_message"></div>
 		<div id="chaos_info" class="invisible">
 			You will play:  
 			<div id="player_color" class="circle"></div>
 		</div>
+
 	</div>
 </body>
 </html>

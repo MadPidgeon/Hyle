@@ -27,17 +27,13 @@ function shuffleArray(array) {
 
 const ORDER=0,CHAOS=1;
 
-function randomClr(sz){
-	return Math.random()*sz|0;
-}
-
 class Board{
 	constructor(sz){
 		validNum(sz,1,1000);
 		this.sz=sz;
 		this.bd=new Array(sz*sz).fill(-1);
-		this.bd[17]=3;
 		this.turn=CHAOS;
+		this.bag=new Array(sz*sz).fill(0).map((_,i)=>i%sz);
 	}
 
 	size(){return this.sz;}
@@ -56,6 +52,12 @@ class Board{
 		if(this.bd[idx]!=-1){
 			throw new Error("Index already taken");
 		}
+		let cidx=this.bag.indexOf(clr);
+		if(cidx==-1){
+			throw new Error("Colour not in bag");
+		}
+		this.bag.splice(cidx,1);
+		console.log("add: "+this.bag);
 		this.bd[idx]=clr;
 		this.turn=ORDER;
 	}
@@ -69,12 +71,34 @@ class Board{
 		if(from==to){
 			throw new Error("From == to");
 		}
-		if(bd[from]==-1||bd[to]!=-1){
-			throw new Error("Invalid move");
+		if(this.bd[from]==-1){
+			throw new Error("Invalid move: start square empty");
 		}
-		bd[to]=bd[from];
-		bd[from]=-1;
+		if(this.bd[to]!=-1){
+			throw new Error("Invalid move: end square not empty");
+		}
+		let step;
+		if(from%this.sz==to%this.sz)step=this.sz;
+		else if(~~(from/this.sz)==~~(to/this.sz))step=1;
+		else throw new Error("Invalid move: not on a line");
+
+		for(let i=Math.min(from,to)+step;i<Math.max(from,to);i+=step){
+			if(this.bd[i]!=-1){
+				throw new Error("Invalid move: path not empty");
+			}
+		}
+
+		this.bd[to]=this.bd[from];
+		this.bd[from]=-1;
 		this.turn=CHAOS;
+	}
+
+	genclr(){
+		if(this.bag.length==0){
+			throw new Error("Board full");
+		}
+		console.log("genclr: "+this.bag);
+		return this.bag[Math.random()*this.bag.length|0];
 	}
 
 	serialise(){
@@ -126,8 +150,9 @@ io.on("connection",(conn)=>{
 			id: uniqid(),
 			conns: [cobj],
 			bd: new Board(BOARD_SIZE),
-			chaosclr: randomClr(BOARD_SIZE),
+			chaosclr: -1,
 		};
+		cobj.game.chaosclr=cobj.game.bd.genclr();
 		console.log("  id="+cobj.game.id);
 		games.set(cobj.game.id,cobj.game);
 		cb(cobj.game.id);
@@ -161,6 +186,10 @@ io.on("connection",(conn)=>{
 			conn.emit("err","Not in a game");
 			return;
 		}
+		if(cobj.game.chaosclr==-1){
+			conn.emit("err","Chaos is not on turn");
+			return;
+		}
 		if(clr!=cobj.game.chaosclr){
 			conn.emit("err","Not the assigned chaos colour");
 			return;
@@ -171,7 +200,7 @@ io.on("connection",(conn)=>{
 			conn.emit("err",e.message);
 			return;
 		}
-		cobj.game.chaosclr=randomClr(BOARD_SIZE);
+		cobj.game.chaosclr=-1;
 		const ser=cobj.game.bd.serialise();
 		for(const o of cobj.game.conns){
 			o.conn.emit("board",ser);
@@ -179,9 +208,13 @@ io.on("connection",(conn)=>{
 		cobj.game.conns[ORDER].conn.emit("turn");
 	});
 	conn.on("omove",(idx1,idx2)=>{
-		console.log("Cmove: "+(cobj.game?cobj.game.id:"(n.a.)")+" ("+idx1+","+idx2+")");
+		console.log("Omove: "+(cobj.game?cobj.game.id:"(n.a.)")+" ("+idx1+","+idx2+")");
 		if(cobj.game==null){
 			conn.emit("err","Not in a game");
+			return;
+		}
+		if(cobj.game.chaosclr!=-1){
+			conn.emit("err","Order is not on turn");
 			return;
 		}
 		try {
@@ -194,6 +227,7 @@ io.on("connection",(conn)=>{
 		for(const o of cobj.game.conns){
 			o.conn.emit("board",ser);
 		}
+		cobj.game.chaosclr=cobj.game.bd.genclr();
 		cobj.game.conns[CHAOS].conn.emit("turn",cobj.game.chaosclr);
 	});
 });

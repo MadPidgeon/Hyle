@@ -13,6 +13,7 @@ function createGame() {
 	console.log("Game create!");
 	socket.emit("create",function success( id ) {
 		user_id = id;
+		document.getElementById("connection_info").innerHTML = "Your session id is " + id;
 	});
 }
 
@@ -23,9 +24,9 @@ function joinGame() {
 }
 
 function startGame( p ) {
+	document.getElementById("connection_info").innerHTML = "";
 	console.log("Game start!");
-	square_val = Array( board_size ).fill(0);
-	square_val.map(_=>Array( board_size ).fill(-1));
+	square_val = Array( board_size ).fill(0).map(_=>Array( board_size ).fill(-1));
 	document.getElementById("game_space").classList.remove("invisible");
 	document.getElementById("settings").classList.add("invisible");
 	player = p;
@@ -33,70 +34,115 @@ function startGame( p ) {
 	if( p == 1 )
 		document.getElementById("chaos_info").className = "";
 }
-
+ 
 function receiveBoard( str ) {
 	let receive = JSON.parse( str );
 	console.log("Board update: " );
+	console.log(square_val);
 	console.log(receive);
-	for( let i = 0; i < board_size; ++i ) {
-		for( let j = 0; j < board_size; ++j ) {
-			square_div[i][j].className = "square";
-			let inner = square_div[i][j].firstElementChild;
-			if( receive[i][j] != -1 ) {
-				inner.className = "inner_circle t"+receive[i][j];
+	for( let x = 0; x < board_size; ++x ) {
+		for( let y = 0; y < board_size; ++y ) {
+			square_div[x][y].className = "square";
+			let inner = square_div[x][y].firstElementChild;
+			if( receive[y][x] != -1 ) {
+				inner.className = "inner_circle t"+receive[y][x];
 			} else {
 				inner.className = "invisible";
 			}
-			if( receive[i][j] != square_val[i][j] )
-				square_div[i][j].classList.add("last_play");
+			if( receive[y][x] != square_val[x][y] )
+				square_div[x][y].classList.add("last_play");
 		}
 	}
-	square_val = receive;
+	square_val = new Array(board_size).fill(0).map((_,x)=>receive.map(r=>r[x]));
 }
 
 function startTurn( col ) {
 	console.log("Your turn!");
 	turn++;
 	document.getElementById("turn_display").innerHTML = "Turn: " + turn;
-	chaos_col = col;
-	document.getElementById("player_color").className = "inner_circle t" + col;
+	if( player == 1 ) {
+		document.getElementById("chaos_info").classList.remove("invisible");
+		chaos_col = col;
+		document.getElementById("player_color").className = "inner_circle t" + col;
+	}
 	has_turn = true;
+	document.getElementById("status_message").innerHTML = "Your turn.";
 }
 
-function clickSquare( r, c ) {
+function clickSquare( x, y ) {
+	console.log("clickSquare(" + x + "," + y + ")");
 	if( has_turn ) {
-		if( square_val[r][c] != -1 ) {
-			if( square_val[r][c].classList.contains("select") ) {
+		if( player == 1 ) {
+			chaosPlay( [x, y] );
+		} else {
+			if( select[0] != -1 ) {
+				square_div[select[0]][select[1]].classList.remove("select");
+				orderPlay( select, [x,y] );
 				select = [-1,-1];
-				square_div[r][c].classList.remove("select");
 			} else {
-				square_div[r][c].classList.add("select");
-				select = [r,c];
+				if( square_val[x][y] != -1 ) {
+					square_div[x][y].classList.add("select");
+					select = [x,y];
+				}
 			}
 		}
 	}
 }
 
+function chaosPlay( loc ) {
+	console.log("clickSquare([" + loc[0] + "," + loc[1] + "])");
+	if( square_val[loc[0]][loc[1]] != -1 )
+		return;
+	socket.emit("cmove",loc[1]*board_size+loc[0],chaos_col);
+	document.getElementById("status_message").innerHTML = "Opponent is moving...";
+	has_turn = false;
+	document.getElementById("chaos_info").classList.add("invisible");
+}
+
+function orderPlay( loc1, loc2 ) {
+	console.log("orderPlay(["+loc1[0]+","+loc1[1]+"], ["+loc2[0]+","+loc2[1]+"])");
+	if( (loc1[0] == loc2[0]) == (loc1[1] == loc2[1]) )
+		return;
+	if( square_val[loc1[0]][loc1[1]] == -1 )
+		return;
+	console.log("First check!");
+	let diff = [Math.sign(loc2[0]-loc1[0]),Math.sign(loc2[1]-loc1[1])];
+	let start = [loc1[0],loc1[1]];
+	// start = start.map((v,i)=>v+diff[i]);
+	let itr = 0;
+	do {
+		start = start.map((v,i)=>v+diff[i]);
+		if( square_val[start[0]][start[1]] != -1 ) {
+			console.log(start);
+			return;
+		}
+		if( itr++ > 100 )
+			return;
+	} while( start[0] != loc2[0] || start[1] != loc2[1] );
+	socket.emit("omove",loc1[1]*board_size+loc1[0],loc2[1]*board_size+loc2[0]);
+	document.getElementById("status_message").innerHTML = "Opponent is moving...";
+	has_turn = false;
+}
+
 function loadBoard() {
 	let container = document.getElementById("board_container");
-	square_div = Array( board_size );
-	for( let i = 0; i < board_size; ++i ) {
-		let row_name = "r" + i;
+	square_div = Array( board_size ).fill(0).map(_=>Array( board_size, 0 ) );
+	for( let y = 0; y < board_size; ++y ) {
+		let row_name = "r" + y;
 		let row = document.createElement("div");
 		row.id = row_name;
 		row.className = "row";
 		container.appendChild(row);
 		row = document.getElementById(row_name);
-		square_div[i] = Array( board_size );
-		for( let j = 0; j < board_size; ++j ) {
-			let square_name = ( "s" + i ) + j;
+		for( let x = 0; x < board_size; ++x ) {
+			let square_name = "s" + y + x;
 			let square = document.createElement("div");
 			square.innerHTML = "<div class='inner_circle invisible'></div>";
 			square.id = square_name;
 			square.className = "square";
-			square.onclick = () => clickSquare(i,j); 
+			square.onclick = () => clickSquare(x,y); 
 			row.appendChild(square);
-			square_div[i][j] = document.getElementById(square_name);
+			square_div[x][y] = document.getElementById(square_name);
 		}
 	}
 }
@@ -108,5 +154,6 @@ window.onload = function() {
 	socket.on("board",receiveBoard);
 	socket.on("disconnect", ()=>{location.href = location.href;});
 	socket.on("turn",startTurn);
+	socket.on("err",(str)=>alert(str));
 	loadBoard();
 }
