@@ -1,0 +1,44 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>Huylen</title>
+	<link rel="stylesheet" href="style.css"></style>
+	<script src="/socket.io/socket.io.js"></script>
+	<script src="board.js"></script>
+</head>
+<body>
+	<h1>Huylen</h1>
+	<div id="settings">
+		<table>
+			<tr>
+				<td>
+					Connect using key:
+				</td>
+				<td>
+					<input id="player_hash" type="text" placeholder="key"> 
+					<input type="submit" value="Connect" onclick="joinGame();"><br>
+				</td>
+			</tr>
+			<tr>
+				<td>
+					Create a game:
+				</td>
+				<td>
+					<input type="submit" value="Create" onclick="createGame();">
+					<span id="create_id"></span>
+				</td>
+			</tr>
+		</table>
+	</div>
+	<div id="game_space" class="invisible">
+		<h4 id="player_display"></h4>
+		<div id="turn_display"></div>
+		<div id="board_container"></div>
+		<div id="chaos_info" class="invisible">
+			You will play:  
+			<div id="player_color" class="circle"></div>
+		</div>
+	</div>
+</body>
+</html>
