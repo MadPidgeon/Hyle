@@ -9,6 +9,36 @@ let turn = 0;
 let has_turn = false;
 let chaos_col;
 
+function getScore() {
+	let dx = 0;
+	let dy = 1;
+	let score = 0;
+	for( let dir = 0; dir < 2; ++dir ) {
+		for( let x = 0; x < board_size; ++x ) {
+			for( let y = 0; y < board_size; ++y ) {
+				let x2 = x+dx;
+				let y2 = y+dy;
+				while( x2 < board_size && y2 < board_size ) {
+					let success = true;
+					for( let inner = 0; inner <= Math.max(x2-x,y2-y)/2; ++inner ) {
+						if( ( square_val[x+inner*dx][y+inner*dy] != square_val[x2-inner*dx][y2-inner*dy] ) || square_val[x+dx*inner][y+dy*inner] == -1 ) {
+							success = false;
+							break;
+						}
+					}
+					if( success )
+						score += x2 + y2 - x - y + 1;
+					x2 += dx;
+					y2 += dy;
+				}
+			}
+		}
+		dx = 1;
+		dy = 0;
+	}
+	return score;
+}
+
 function createGame() {
 	console.log("Game create!");
 	socket.emit("create",function success( id ) {
@@ -54,12 +84,13 @@ function receiveBoard( str ) {
 		}
 	}
 	square_val = new Array(board_size).fill(0).map((_,x)=>receive.map(r=>r[x]));
+	document.getElementById("order_score").innerHTML = "Score: "+getScore();
+	document.getElementById("turn_display").innerHTML = "Turn: " + turn;
 }
 
 function startTurn( col ) {
 	console.log("Your turn!");
 	turn++;
-	document.getElementById("turn_display").innerHTML = "Turn: " + turn;
 	if( player == 1 ) {
 		document.getElementById("chaos_info").classList.remove("invisible");
 		chaos_col = col;
