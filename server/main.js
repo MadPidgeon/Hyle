@@ -57,7 +57,7 @@ class Board{
 			throw new Error("Colour not in bag");
 		}
 		this.bag.splice(cidx,1);
-		console.log("add: "+this.bag);
+		// console.log("add: "+this.bag);
 		this.bd[idx]=clr;
 		this.turn=ORDER;
 	}
@@ -97,7 +97,7 @@ class Board{
 		if(this.bag.length==0){
 			throw new Error("Board full");
 		}
-		console.log("genclr: "+this.bag);
+		// console.log("genclr: "+this.bag);
 		return this.bag[Math.random()*this.bag.length|0];
 	}
 
