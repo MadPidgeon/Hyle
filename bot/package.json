@@ -1,0 +1,14 @@
+{
+  "name": "bot",
+  "version": "0.1.0",
+  "description": "",
+  "main": "proxy.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Tom Smeding <tom.smeding@gmail.com> (https://tomsmeding.com)",
+  "license": "MIT",
+  "dependencies": {
+    "socket.io-client": "^2.0.3"
+  }
+}
