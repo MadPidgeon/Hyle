@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -Wall -Wextra -std=c++11 -g -O2 -fwrapv
+CXXFLAGS = -Wall -Wextra -std=c++11 -g -O3 -fwrapv
 TARGETS = mc mm
 LIBFILES = lib.cpp lib.h
 

@@ -30,29 +30,28 @@ struct Move{
 class Board{
 public:
 	int8_t bd[SIZE*SIZE];
+	int8_t bag[SIZE];
 	
 	Board();
 
-	inline int8_t& operator[](int idx){
-		return bd[idx];
-	}
+	inline int8_t& operator[](int idx){return bd[idx];}
 
-	inline int8_t operator[](int idx) const {
-		return bd[idx];
-	}
+	inline int8_t operator[](int idx) const {return bd[idx];}
 
 	bool full() const;
 	int nempty() const;
 	int score() const;
 	bool validmove(const Move &mv) const;
 	bool valid_o(int idx,int idx2) const;
-	bool valid_c(int idx) const;
+	inline bool valid_c(int idx) const {return bd[idx]==-1;}
 
 	void applymove(const Move &mv);
-	void apply_o(int idx,int idx2);
-	void apply_c(int idx,int8_t clr);
-	void undo_o(int idx,int idx2);
-	void undo_c(int idx);
+	inline void apply_o(int idx,int idx2){bd[idx2]=bd[idx]; bd[idx]=-1;}
+	inline void apply_c(int idx,int8_t clr){bd[idx]=clr; bag[clr]--;}
+	inline void undo_o(int idx,int idx2){bd[idx]=bd[idx2]; bd[idx2]=-1;}
+	inline void undo_c(int idx,int8_t clr){bd[idx]=-1; bag[clr]++;}
+
+	inline int bagleft(int8_t clr){return bag[clr];}
 
 	void print(ostream &os) const;
 };
@@ -74,8 +73,8 @@ constexpr int max_order_moves(int n){
 							(idx2_ = idx1_ + SIZE*dy__ + dx__, bd_[idx2_] == -1))
 
 
-pair<int,int> randmove_o(Board &bd);
-int randmove_c(Board &bd);
+pair<int,int> randmove_o(const Board &bd);
+int randmove_c(const Board &bd);
 
 // TO IMPLEMENT:
 pair<int,int> calcmove_o(const Board &bd);

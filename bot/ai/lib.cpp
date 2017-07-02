@@ -12,6 +12,8 @@ using namespace std;
 
 Board::Board(){
 	memset(bd,-1,SIZE*SIZE);
+	static_assert(sizeof(bag[0])==1, "fix the memset below");
+	memset(bag,SIZE,SIZE);
 }
 
 bool Board::full() const {
@@ -131,33 +133,11 @@ bool Board::valid_o(int idx,int idx2) const {
 	       (idx%SIZE==idx2%SIZE||idx/SIZE==idx2/SIZE);
 }
 
-bool Board::valid_c(int idx) const {
-	return bd[idx]==-1;
-}
-
 void Board::applymove(const Move &mv){
 	assert(validmove(mv));
 	if(mv.player==ORDER)apply_o(mv.idx,mv.idx2);
 	else if(mv.player==CHAOS)apply_c(mv.idx,mv.clr);
 	else assert(false);
-}
-
-void Board::apply_o(int idx,int idx2){
-	bd[idx2]=bd[idx];
-	bd[idx]=-1;
-}
-
-void Board::apply_c(int idx,int8_t clr){
-	bd[idx]=clr;
-}
-
-void Board::undo_o(int idx,int idx2){
-	bd[idx]=bd[idx2];
-	bd[idx2]=-1;
-}
-
-void Board::undo_c(int idx){
-	bd[idx]=-1;
 }
 
 void Board::print(ostream &os) const {
@@ -177,7 +157,7 @@ void Board::print(ostream &os) const {
 	os.flush();
 }
 
-pair<int,int> randmove_o(Board &bd){
+pair<int,int> randmove_o(const Board &bd){
 	int poss[max_order_moves(SIZE)][2],nposs=0;
 	for(int i=0;i<SIZE*SIZE;i++){
 		if(bd[i]==-1)continue;
@@ -200,7 +180,7 @@ pair<int,int> randmove_o(Board &bd){
 	return {poss[i][0],poss[i][1]};
 }
 
-int randmove_c(Board &bd){
+int randmove_c(const Board &bd){
 	int poss[SIZE*SIZE],nposs=0;
 	for(int i=0;i<SIZE*SIZE;i++){
 		if(bd[i]==-1)poss[nposs++]=i;
