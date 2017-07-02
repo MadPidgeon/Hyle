@@ -1,6 +1,7 @@
 CXX = g++
 CXXFLAGS = -Wall -Wextra -std=c++11 -g -O2 -fwrapv
-TARGET = $(shell basename $(PWD))
+TARGETS = mc mm
+LIBFILES = lib.cpp lib.h
 
 OBJDIR = obj
 
@@ -8,11 +9,11 @@ OBJDIR = obj
 
 .SUFFIXES:
 
-all: $(TARGET)
+all: $(TARGETS)
 
 clean:
 	@echo "Cleaning"
-	@rm -f $(TARGET)
+	@rm -f $(TARGETS)
 	@rm -rf $(OBJDIR)
 
 
@@ -21,6 +22,6 @@ $(OBJDIR)/%.o: %.cpp $(wildcard *.h)
 	@echo "CXX $<"
 	@$(CXX) $(CXXFLAGS) -c -o $@ $<
 
-$(TARGET): $(patsubst %.cpp,$(OBJDIR)/%.o,$(wildcard *.cpp))
+$(TARGETS): %: $(OBJDIR)/%.o $(patsubst %.cpp,$(OBJDIR)/%.o,$(filter %.cpp,$(LIBFILES)))
 	@echo "LD -o $@"
 	@$(CXX) -o $@ $^
