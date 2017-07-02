@@ -3,7 +3,7 @@
 	border-collapse: collapse;
 	width:auto;
 	background-color: #000;
-	border:1px solid  #666666;
+	border:1px solid #666;
 }
 
 .square {
@@ -19,7 +19,7 @@
 }
 
 .square.last_play {
-	background-color: #0EE;
+	background-color: #2BB;
 }
 
 .square.select.last_play {
