@@ -41,6 +41,7 @@ socket.on("connect",()=>{
 
 socket.on("disconnect",()=>{
 	console.log("Disconnected");
+	if(aiproc)aiproc.kill();
 	process.exit(0);
 });
 
@@ -107,6 +108,7 @@ socket.on("board",(nb)=>{
 	}
 	if(diff.length>2){
 		console.log("More than 2 differences in board; proxy/server failure?");
+		if(aiproc)aiproc.kill();
 		process.exit(1);
 	}
 });
@@ -119,6 +121,7 @@ socket.on("turn",(clr)=>{
 
 socket.on("err",(s)=>{
 	console.log(`Err: ${s}`);
+	if(aiproc)aiproc.kill();
 	process.exit(1);
 });
 
