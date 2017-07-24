@@ -34,7 +34,7 @@ static int playout_c(Board &bd){
 	return playout_o(bd,left-1);
 }
 
-static const int montecarlo_playouts=10000;
+static const int montecarlo_playouts=500;
 
 pair<int,int> calcmove_o(const Board &bd){
 	int maxat[2]={-1,-1};
@@ -79,7 +79,7 @@ int calcmove_c(const Board &bd,int clr){
 
 __attribute__((unused))
 static int countmoves_o(Board &bd){
-	int nposs=0;  // TODO: Fix the poss array size
+	int nposs=0;
 	for(int i=0;i<SIZE*SIZE;i++){
 		if(bd[i]==-1)continue;
 		int x=i%SIZE,y=i/SIZE;
@@ -128,4 +128,8 @@ static void test(){
 			bd.print(cout);
 		}
 	}
+}
+
+int main(int argc,char **argv){
+	return lib_main(argc,argv);
 }

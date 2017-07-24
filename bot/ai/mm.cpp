@@ -8,7 +8,7 @@
 using namespace std;
 
 
-static const int minimax_depth=4;
+static const int minimax_depth=2;
 
 static int evaluate(const Board &bd){
 	// TODO: explore "guaranteed points"
@@ -72,17 +72,23 @@ pair<int,int> calcmove_o(const Board &bd_){
 	int maxsc=INT_MIN+1;
 	pair<int,int> maxat(-1,-1);
 	int idx1,idx2;
+#ifdef DO_RAISE_DEPTH
 	int freespaces=bd.nempty();
+#endif
 	FOR_ALL_ORDER_MOVES(bd,idx1,idx2) {
 		bd.apply_o(idx1,idx2);
 		int sc,dep=minimax_depth;
+#ifdef DO_RAISE_DEPTH
 		do {
 			clock_t start=clock();
+#endif
 			sc=minimax_clr(bd,dep,INT_MIN+1,INT_MAX);
+#ifdef DO_RAISE_DEPTH
 			clock_t end=clock();
 			if(end-start>CLOCKS_PER_SEC/50)break;
 			dep++;
 		} while(dep<=2*freespaces);
+#endif
 		bd.undo_o(idx1,idx2);
 		cerr<<sc<<"("<<idx1<<">"<<idx2;
 		for(int i=minimax_depth;i<dep;i++)cerr<<"^";
@@ -102,7 +108,9 @@ int calcmove_c(const Board &bd_,int clr){
 
 	int minsc=INT_MAX;
 	int minat=-1;
+#ifdef DO_RAISE_DEPTH
 	int freespaces=bd.nempty();
+#endif
 	for(int idx=0;idx<SIZE*SIZE;idx++){
 		if(bd[idx]!=-1){
 			cerr<<".,";
@@ -110,13 +118,17 @@ int calcmove_c(const Board &bd_,int clr){
 		}
 		bd.apply_c(idx,clr);
 		int sc,dep=minimax_depth;
+#ifdef DO_RAISE_DEPTH
 		do {
 			clock_t start=clock();
+#endif
 			sc=minimax_o(bd,dep,INT_MIN+1,INT_MAX);
+#ifdef DO_RAISE_DEPTH
 			clock_t end=clock();
 			if(end-start>CLOCKS_PER_SEC/50)break;
 			dep++;
 		} while(dep<=2*(freespaces-1)+1);
+#endif
 		bd.undo_c(idx,clr);
 		cerr<<sc;
 		for(int i=minimax_depth;i<dep;i++)cerr<<"^";
@@ -129,4 +141,8 @@ int calcmove_c(const Board &bd_,int clr){
 	cerr<<endl;
 
 	return minat;
+}
+
+int main(int argc,char **argv){
+	return lib_main(argc,argv);
 }

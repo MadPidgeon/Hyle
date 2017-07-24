@@ -43,7 +43,7 @@ public:
 	int score() const;
 	bool validmove(const Move &mv) const;
 	bool valid_o(int idx,int idx2) const;
-	inline bool valid_c(int idx) const {return bd[idx]==-1;}
+	inline bool valid_c(int idx) const {return idx>=0&&idx<SIZE*SIZE&&bd[idx]==-1;}
 
 	void applymove(const Move &mv);
 	inline void apply_o(int idx,int idx2){bd[idx2]=bd[idx]; bd[idx]=-1;}
@@ -51,7 +51,7 @@ public:
 	inline void undo_o(int idx,int idx2){bd[idx]=bd[idx2]; bd[idx2]=-1;}
 	inline void undo_c(int idx,int8_t clr){bd[idx]=-1; bag[clr]++;}
 
-	inline int bagleft(int8_t clr){return bag[clr];}
+	inline int bagleft(int8_t clr) const {return bag[clr];}
 
 	void print(ostream &os) const;
 };
@@ -75,6 +75,8 @@ constexpr int max_order_moves(int n){
 
 pair<int,int> randmove_o(const Board &bd);
 int randmove_c(const Board &bd);
+
+int lib_main(int argc,char **argv);
 
 // TO IMPLEMENT:
 pair<int,int> calcmove_o(const Board &bd);

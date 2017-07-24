@@ -65,7 +65,6 @@ static int scoreO4(const Board &bd){
 	return res;
 }
 
-__attribute__((unused))
 static int scoreline(const int8_t *line){
 	int res=0;
 	for(int sz=2;sz<=SIZE;sz++){
@@ -189,7 +188,8 @@ int randmove_c(const Board &bd){
 	return poss[rand()%nposs];
 }
 
-int main(){
+int lib_main(int argc,char **argv){
+	(void)argc; (void)argv;
 	{
 		struct timeval tv;
 		gettimeofday(&tv,NULL);
@@ -224,7 +224,9 @@ int main(){
 			int clr;
 			cin>>clr;
 			if(cin.eof())break;
-			Move mv={.player=CHAOS,.clr=clr};
+			Move mv;
+			mv.player=CHAOS;
+			mv.clr=clr;
 			TIMEIT({mv.idx=calcmove_c(bd,clr);});
 			if(!bd.validmove(mv)){
 				cerr<<"AI calculated invalid move ("<<mv.idx<<" clr="<<mv.clr<<")!"<<endl;
@@ -250,7 +252,7 @@ int main(){
 		if(player==ORDER){
 			pair<int,int> p;
 			TIMEIT({p=calcmove_o(bd);});
-			Move mv={.player=ORDER,.idx=p.first,.idx2=p.second};
+			Move mv={.player=ORDER,.idx=p.first,.idx2=p.second,.clr=-1};
 			if(!bd.validmove(mv)){
 				cerr<<"AI calculated invalid move ("<<mv.idx<<" -> "<<mv.idx2<<")!"<<endl;
 				return 1;
@@ -269,4 +271,5 @@ int main(){
 			bd.applymove(mv);
 		}
 	}
+	return 0;
 }

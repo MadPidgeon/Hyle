@@ -1,7 +1,6 @@
 CXX = g++
-CXXFLAGS = -Wall -Wextra -std=c++11 -g -O3 -fwrapv
-TARGETS = mc mm referee
-LIBFILES = lib.cpp lib.h
+CXXFLAGS = -Wall -Wextra -std=c++14 -g -O3 -fwrapv
+TARGET = competition
 
 OBJDIR = obj
 
@@ -9,11 +8,11 @@ OBJDIR = obj
 
 .SUFFIXES:
 
-all: $(TARGETS)
+all: $(TARGET)
 
 clean:
 	@echo "Cleaning"
-	@rm -f $(TARGETS)
+	@rm -f $(TARGET)
 	@rm -rf $(OBJDIR)
 
 
@@ -22,6 +21,6 @@ $(OBJDIR)/%.o: %.cpp $(wildcard *.h)
 	@echo "CXX $<"
 	@$(CXX) $(CXXFLAGS) -c -o $@ $<
 
-$(TARGETS): %: $(OBJDIR)/%.o $(patsubst %.cpp,$(OBJDIR)/%.o,$(filter %.cpp,$(LIBFILES)))
+$(TARGET): %: $(OBJDIR)/%.o
 	@echo "LD -o $@"
 	@$(CXX) -o $@ $^
