@@ -22,6 +22,15 @@
 using namespace std;
 
 
+class die_error : public runtime_error {
+public:
+	explicit die_error(const char *whatstr)
+		:runtime_error(whatstr){}
+	explicit die_error(const string &whatstr)
+		:runtime_error(whatstr){}
+};
+
+
 class Defer{
 	function<void(void)> cb;
 public:
@@ -32,13 +41,13 @@ public:
 };
 
 static void die(const string &msg){
-	cerr<<msg<<endl;
-	throw runtime_error(msg);
+	cerr<<"ERROR: "<<msg<<endl;
+	throw die_error(msg);
 }
 
 static void dieperror(const string &func){
 	const char *msg=strerror(errno);
-	die(func+": "+msg);
+	die("ERROR: "+func+": "+msg);
 }
 
 static void mkdirp(const char *name){
@@ -202,18 +211,24 @@ static optional<pair<int,int>> parse2ints(const string &line){
 	return {{first,second}};
 }
 
-static pair<int,int> playgame(
-		const string &p1,const string &p2,const int gameidx=1){
-	string p1b=sbasename(p1),p2b=sbasename(p2);
-	cleanupname(p1b);
-	cleanupname(p2b);
+struct GameResults {
+	bool cached;
+	pair<int,int> scores;
 
-	cout<<p1b<<" vs "<<p2b<<" (game "<<gameidx<<"): "<<flush;
+	GameResults(){}
+	explicit GameResults(const pair<int,int> &scores)
+		:scores(scores){}
+	GameResults(bool cached,const pair<int,int> &scores)
+		:cached(cached),scores(scores){}
+};
 
+static GameResults playgame(
+		const string &p1,const string &p2,
+		const string &p1b,const string &p2b,
+		const int gameidx=1){
 	const optional<pair<int,int>> mcache=getcache(p1b,p2b,gameidx);
 	if(mcache){
-		cout<<"(cached) "<<mcache->first<<' '<<mcache->second<<endl;
-		return mcache.value();
+		return GameResults(true,mcache.value());
 	}
 
 	ofstream gamelog(
@@ -349,7 +364,6 @@ static pair<int,int> playgame(
 			}
 			const pair<int,int> scores=mscores.value();
 			gamelog<<"\nFINAL SCORES: "<<scores.first<<' '<<scores.second<<endl;
-			cout<<scores.first<<' '<<scores.second<<endl;
 			putcache(p1b,p2b,gameidx,scores);
 			finalscores=scores;
 			break;
@@ -357,7 +371,7 @@ static pair<int,int> playgame(
 			gamelog<<"\nINVALID: ";
 			gamelog.write(args,argslen);
 			gamelog.put('\n');
-			cout<<"invalid"<<endl;
+			die("Player "+string(args,argslen)+" made an invalid move!");
 		}
 	}
 
@@ -367,17 +381,41 @@ static pair<int,int> playgame(
 		die(reason);
 	}
 
-	return finalscores;
+	return GameResults(finalscores);
 }
 
+const int random_numplays=3;
+
 int main(int argc,char **argv){
-	vector<string> players;
-	for(int i=1;i<argc;i++)players.push_back(argv[i]);
+	vector<string> players,bnames;
+	vector<bool> israndom;
+	for(int i=1;i<argc;i++){
+		bool determ=false;
+		const char *arg=argv[i];
+		if(argv[i][0]=='='){
+			determ=true;
+			arg++;
+		}
+		if(find(players.begin(),players.end(),arg)!=players.end()){
+			cerr<<"Player '"<<arg<<"' is given multiple times"<<endl;
+			return 1;
+		}
+		israndom.push_back(!determ);
+		players.push_back(arg);
+		bnames.push_back(sbasename(players[i-1]));
+		cleanupname(bnames[i-1]);
+	}
 
 	const int nplayers=players.size();
 	if(nplayers==0){
 		cerr<<"Usage: "<<argv[0]<<" <players...>"<<endl;
 		return 1;
+	}
+
+	size_t maxnamelen=6,maxbaselen=0;
+	for(int i=0;i<nplayers;i++){
+		if(players[i].size()>maxnamelen)maxnamelen=players[i].size();
+		if(bnames[i].size()>maxbaselen)maxbaselen=bnames[i].size();
 	}
 
 	mkdirp("playerlogs");
@@ -392,24 +430,44 @@ int main(int argc,char **argv){
 	vector<ScoreItem> scores(nplayers);
 
 	for(int i1=0;i1<nplayers;i1++){
+		scores[i1].index=i1;
 		for(int i2=0;i2<nplayers;i2++){
 			if(i1==i2)continue;
-			pair<int,int> res=playgame(players[i1],players[i2]);
-			scores[i1].score+=res.first;
-			scores[i2].score+=res.second;
-		}
-	}
+			const bool isr=israndom[i1]||israndom[i2];
+			const int numplays=isr?random_numplays:1;
+			const int multiplier=isr?1:random_numplays;
+			for(int gameidx=0;gameidx<numplays;gameidx++){
+				cout<<left<<setw(maxbaselen)<<bnames[i1]
+				    <<" vs "<<setw(maxbaselen)<<bnames[i2];
+				if(isr){
+				    cout<<" (game "<<gameidx+1<<"): ";
+				} else {
+					cout<<"         : ";
+				}
+				cout<<flush;
 
-	size_t maxnamelen=6;
-	for(int i=0;i<nplayers;i++){
-		scores[i].index=i;
-		if(players[i].size()>maxnamelen)maxnamelen=players[i].size();
+				GameResults res;
+				try {
+					res=playgame(
+							players[i1],players[i2],bnames[i1],bnames[i2],
+							gameidx+1);
+				} catch(die_error e){
+					return 1;
+				}
+				cout<<res.scores.first<<' '<<res.scores.second;
+				if(res.cached)cout<<"\r\x1B[K";
+				else cout<<endl;
+
+				scores[i1].score+=res.scores.first*multiplier;
+				scores[i2].score+=res.scores.second*multiplier;
+			}
+		}
 	}
 
 	sort(scores.begin(),scores.end(),
 			[](const ScoreItem &a,const ScoreItem &b){return a.score>b.score;});
 
-	cout<<setw(maxnamelen)<<"Player"<<" | Score"<<endl;
+	cout<<right<<setw(maxnamelen)<<"Player"<<" | Score"<<endl;
 	cout<<string(maxnamelen,'-')<<"-+-"<<"--------"<<endl;
 	for(int i=0;i<nplayers;i++){
 		cout<<setw(maxnamelen)<<players[scores[i].index]
