@@ -89,8 +89,6 @@ int main(int argc,char **argv){
 			bd.apply_o(idx1,idx2);
 
 			cout<<"writeln 1 "<<idx1<<" "<<idx2<<endl;
-
-			cerr<<'|';
 		}
 
 		turn=3-turn;

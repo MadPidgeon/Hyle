@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -Wall -Wextra -std=c++14 -g -O3 -fwrapv
+CXXFLAGS = -Wall -Wextra -std=c++17 -g -O3 -fwrapv
 TARGET = competition
 
 OBJDIR = obj

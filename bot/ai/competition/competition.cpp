@@ -1,4 +1,5 @@
 #include <iostream>
+#include <iomanip>
 #include <fstream>
 #include <vector>
 #include <array>
@@ -6,6 +7,8 @@
 #include <tuple>
 #include <stdexcept>
 #include <functional>
+#include <optional>
+#include <algorithm>
 #include <cstring>
 #include <cstdint>
 #include <unistd.h>
@@ -38,11 +41,6 @@ static void dieperror(const string &func){
 	die(func+": "+msg);
 }
 
-__attribute__((unused))
-static string tempname(const string &base){
-	return ".competition."+to_string(getpid())+".tmp."+base;
-}
-
 static void mkdirp(const char *name){
 	struct stat statbuf;
 	if(stat(name,&statbuf)<0){
@@ -54,13 +52,6 @@ static void mkdirp(const char *name){
 		if(mkdir(name,0777)<0){
 			dieperror("mkdir");
 		}
-	}
-}
-
-__attribute__((unused))
-static void mkfifop(const string &name){
-	if(mkfifo(name.c_str(),0777)<0){
-		dieperror("mkfifo");
 	}
 }
 
@@ -114,8 +105,11 @@ pair<pid_t,array<int,3>> spawn(const vector<string> &args,array<Spawn,3> ss){
 		if(ss[i].type==Spawn::Type::pipe){
 			if(pipe(pipes[i])<0)dieperror("pipe");
 		} else if(ss[i].type==Spawn::Type::redirect){
-			filefds[i]=open(ss[i].fname.c_str(),i==0?O_RDONLY:O_WRONLY|O_TRUNC);
-			if(filefds[i]<0)dieperror("open");
+			filefds[i]=open(
+					ss[i].fname.c_str(),
+					i==0?O_RDONLY:O_WRONLY|O_TRUNC|O_CREAT,
+					0666);
+			if(filefds[i]<0)dieperror("open("+ss[i].fname+")");
 		}
 	}
 
@@ -164,26 +158,76 @@ static function<void(void)> makeprocdefer(pid_t pid){
 		kill(pid,SIGTERM);
 		usleep(100000);
 		int status;
-		if(waitpid(pid,&status,0)==pid&&!WIFEXITED(status)){
+		waitpid(pid,&status,WNOHANG);
+		if(waitpid(pid,&status,WNOHANG)==pid){
 			cerr<<"Had to SIGKILL process "<<pid<<endl;
 			kill(pid,SIGKILL);
 		}
 	};
 }
 
-static void playgame(const string &p1,const string &p2,const int gameidx=1){
-	const string p1b=sbasename(p1),p2b=sbasename(p2);
-
-	ofstream complog("competitionlogs/"+p1b+"--"+p2b+"."+to_string(gameidx)+".txt");
-	if(!complog){
-		die("Cannot open competition log!");
+static void cleanupname(string &s){
+	size_t idx=0;
+	while((idx=s.find("--",idx))!=string::npos){
+		s.erase(idx,1);
 	}
+}
 
-	complog<<"MANAGER for "<<p1b<<" vs "<<p2b<<" (game "<<gameidx<<")"<<endl;
+static optional<pair<int,int>> getcache(
+		const string &p1,const string &p2,int gameidx){
+	ifstream in("gamecache/"+p1+"--"+p2+"."+to_string(gameidx)+".txt");
+	if(!in)return {};
+	pair<int,int> dst;
+	in>>dst.first>>dst.second;
+	if(!in)return {};
+	return {dst};
+}
+
+static void putcache(
+		const string &p1,const string &p2,int gameidx,pair<int,int> result){
+	ofstream out("gamecache/"+p1+"--"+p2+"."+to_string(gameidx)+".txt");
+	if(!out)die("Cannot open cache file");
+	out<<result.first<<' '<<result.second;
+	if(!out)die("Cannot write to cache file");
+}
+
+static optional<pair<int,int>> parse2ints(const string &line){
+	if(line.size()<2)return {};
+	char *endp;
+	int first=strtol(line.data(),&endp,10);
+	if(*endp!=' ')return {};
+	char *p2=endp+1;
+	int second=strtol(p2,&endp,10);
+	if(*p2=='\0'||*endp!='\0')return {};
+	return {{first,second}};
+}
+
+static pair<int,int> playgame(
+		const string &p1,const string &p2,const int gameidx=1){
+	string p1b=sbasename(p1),p2b=sbasename(p2);
+	cleanupname(p1b);
+	cleanupname(p2b);
+
 	cout<<p1b<<" vs "<<p2b<<" (game "<<gameidx<<"): "<<flush;
 
-	const string p1errname="playerlogs/"+p1b+"."+p1b+"--"+p2b+"."+to_string(gameidx)+".txt";
-	const string p2errname="playerlogs/"+p2b+"."+p1b+"--"+p2b+"."+to_string(gameidx)+".txt";
+	const optional<pair<int,int>> mcache=getcache(p1b,p2b,gameidx);
+	if(mcache){
+		cout<<"(cached) "<<mcache->first<<' '<<mcache->second<<endl;
+		return mcache.value();
+	}
+
+	ofstream gamelog(
+			"gamelogs/"+p1b+"--"+p2b+"."+to_string(gameidx)+".txt");
+	if(!gamelog){
+		die("Cannot open game log!");
+	}
+
+	gamelog<<"MANAGER for "<<p1b<<" vs "<<p2b<<" (game "<<gameidx<<")"<<endl;
+
+	const string p1errname=
+		"playerlogs/"+p1b+"."+p1b+"--"+p2b+"."+to_string(gameidx)+".txt";
+	const string p2errname=
+		"playerlogs/"+p2b+"."+p1b+"--"+p2b+"."+to_string(gameidx)+".txt";
 
 	pid_t refpid;
 	array<int,3> reffds;
@@ -224,19 +268,17 @@ static void playgame(const string &p1,const string &p2,const int gameidx=1){
 
 	const char *reason=NULL;
 
+	pair<int,int> finalscores={-1,-1};
+
 	char *line=NULL;
 	size_t linesz=0;
 	while(true){
 		int status;
-		if(waitpid(refpid,&status,WNOHANG)>0&&WIFEXITED(status)){
-			reason="Referee quit";
-			break;
-		}
-		if(waitpid(players[0].pid,&status,WNOHANG)>0&&WIFEXITED(status)){
+		if(waitpid(players[0].pid,&status,WNOHANG)>0){
 			reason="Player 1 quit";
 			break;
 		}
-		if(waitpid(players[1].pid,&status,WNOHANG)>0&&WIFEXITED(status)){
+		if(waitpid(players[1].pid,&status,WNOHANG)>0){
 			reason="Player 2 quit";
 			break;
 		}
@@ -257,8 +299,6 @@ static void playgame(const string &p1,const string &p2,const int gameidx=1){
 		char *cmd=line;
 		char *args=spidx==(size_t)nread?line+spidx:line+spidx+1;
 		size_t argslen=line+nread-args;
-
-		// cerr<<"cmd=<<"<<cmd<<">> args=<<"<<args<<">>"<<endl;
 
 		if(strcmp(cmd,"writeln")==0){
 			if(argslen<2)die("Invalid 'writeln' line from referee");
@@ -288,29 +328,35 @@ static void playgame(const string &p1,const string &p2,const int gameidx=1){
 				if(feof(players[target].out)){
 					die(string("EOF on stdout of p")+args);
 				} else {
-					die(string("Error reading from p")+args+": "+strerror(errno));
+					die(string("Error reading from p")
+							+args+": "+strerror(errno));
 				}
 			}
 			fwrite(rline,1,rnread,refin);
 			fflush(refin);
 			free(rline);
 		} else if(strcmp(cmd,"writelog")==0){
-			complog.write(args,argslen);
-			complog.put('\n');
+			gamelog.write(args,argslen);
+			gamelog.put('\n');
 		} else if(strcmp(cmd,"timings")==0){
 			fprintf(refin,"%lf %lf\n",players[0].timing,players[1].timing);
 			fflush(refin);
 		} else if(strcmp(cmd,"results")==0){
-			complog<<"\nFINAL SCORES: ";
-			complog.write(args,argslen);
-			complog.put('\n');
-			cout.write(args,argslen);
-			cout.put('\n');
+			const optional<pair<int,int>> mscores=
+				parse2ints(string(args,argslen));
+			if(!mscores){
+				die("Referee sent invalid results line");
+			}
+			const pair<int,int> scores=mscores.value();
+			gamelog<<"\nFINAL SCORES: "<<scores.first<<' '<<scores.second<<endl;
+			cout<<scores.first<<' '<<scores.second<<endl;
+			putcache(p1b,p2b,gameidx,scores);
+			finalscores=scores;
 			break;
 		} else if(strcmp(cmd,"invalid")==0){
-			complog<<"\nINVALID: ";
-			complog.write(args,argslen);
-			complog.put('\n');
+			gamelog<<"\nINVALID: ";
+			gamelog.write(args,argslen);
+			gamelog.put('\n');
 			cout<<"invalid"<<endl;
 		}
 	}
@@ -320,6 +366,8 @@ static void playgame(const string &p1,const string &p2,const int gameidx=1){
 	if(reason!=NULL){
 		die(reason);
 	}
+
+	return finalscores;
 }
 
 int main(int argc,char **argv){
@@ -333,12 +381,38 @@ int main(int argc,char **argv){
 	}
 
 	mkdirp("playerlogs");
-	mkdirp("competitionlogs");
+	mkdirp("gamelogs");
+	mkdirp("gamecache");
+
+	struct ScoreItem {
+		int index=0;
+		int score=0;
+	};
+
+	vector<ScoreItem> scores(nplayers);
 
 	for(int i1=0;i1<nplayers;i1++){
 		for(int i2=0;i2<nplayers;i2++){
 			if(i1==i2)continue;
-			playgame(players[i1],players[i2]);
+			pair<int,int> res=playgame(players[i1],players[i2]);
+			scores[i1].score+=res.first;
+			scores[i2].score+=res.second;
 		}
+	}
+
+	size_t maxnamelen=6;
+	for(int i=0;i<nplayers;i++){
+		scores[i].index=i;
+		if(players[i].size()>maxnamelen)maxnamelen=players[i].size();
+	}
+
+	sort(scores.begin(),scores.end(),
+			[](const ScoreItem &a,const ScoreItem &b){return a.score>b.score;});
+
+	cout<<setw(maxnamelen)<<"Player"<<" | Score"<<endl;
+	cout<<string(maxnamelen,'-')<<"-+-"<<"--------"<<endl;
+	for(int i=0;i<nplayers;i++){
+		cout<<setw(maxnamelen)<<players[scores[i].index]
+		    <<" | "<<scores[i].score<<endl;
 	}
 }
