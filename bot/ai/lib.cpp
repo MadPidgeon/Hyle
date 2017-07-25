@@ -85,7 +85,7 @@ static int scoreline(const int8_t *line){
 static int *scorecache;  // array of (SIZE+1)^SIZE scores
 
 __attribute__((constructor))
-static void init_scorecache_list(){
+static void init_scorecache(){
 	int cachesz=1;
 	for(int i=0;i<SIZE;i++){
 		cachesz*=SIZE+1;

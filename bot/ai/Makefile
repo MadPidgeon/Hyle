@@ -1,6 +1,6 @@
 CXX = g++
 CXXFLAGS = -Wall -Wextra -std=c++11 -g -O3 -fwrapv
-TARGETS = first random mc mm referee
+TARGETS = first random mc mm mm2 referee
 LIBFILES = lib.cpp lib.h
 
 OBJDIR = obj

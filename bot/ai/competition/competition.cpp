@@ -99,7 +99,7 @@ Spawn Spawn::redirect(const string &fname){
 
 pair<pid_t,array<int,3>> spawn(const vector<string> &args,array<Spawn,3> ss){
 	if(args.size()==0){
-		die("Invaild args size in spawn()");
+		die("Invalid args size in spawn()");
 	}
 	char **cargs=new char*[args.size()+1];
 	for(size_t i=0;i<args.size();i++){
@@ -161,6 +161,12 @@ static int64_t gettimestamp(){
 	return (int64_t)tv.tv_sec*1000000+tv.tv_usec;
 }
 
+static int64_t lastmodified(const string &fname){
+	struct stat sb;
+	if(stat(fname.data(),&sb)<0)return -1;
+	return (int64_t)sb.st_mtim.tv_sec*1000+(int64_t)sb.st_mtim.tv_nsec/1000000;
+}
+
 static function<void(void)> makeprocdefer(pid_t pid){
 	return [pid](){
 		kill(pid,SIGCONT);
@@ -182,12 +188,15 @@ static void cleanupname(string &s){
 	}
 }
 
-static optional<pair<int,int>> getcache(
-		const string &p1,const string &p2,int gameidx){
-	ifstream in("gamecache/"+p1+"--"+p2+"."+to_string(gameidx)+".txt");
+static optional<tuple<int64_t,int,int>> getcache(
+		const string &p1b,const string &p2b,int gameidx){
+	const string fname="gamecache/"+p1b+"--"+p2b+"."+to_string(gameidx)+".txt";
+	int64_t stamp=lastmodified(fname);
+	ifstream in(fname);
 	if(!in)return {};
-	pair<int,int> dst;
-	in>>dst.first>>dst.second;
+	tuple<int64_t,int,int> dst;
+	get<0>(dst)=stamp;
+	in>>get<1>(dst)>>get<2>(dst);
 	if(!in)return {};
 	return {dst};
 }
@@ -212,23 +221,28 @@ static optional<pair<int,int>> parse2ints(const string &line){
 }
 
 struct GameResults {
-	bool cached;
-	pair<int,int> scores;
-
-	GameResults(){}
-	explicit GameResults(const pair<int,int> &scores)
-		:scores(scores){}
-	GameResults(bool cached,const pair<int,int> &scores)
-		:cached(cached),scores(scores){}
+	bool cached=false;
+	pair<int,int> scores={-1,-1};
+	pair<double,double> timing={0,0};
 };
 
 static GameResults playgame(
 		const string &p1,const string &p2,
 		const string &p1b,const string &p2b,
 		const int gameidx=1){
-	const optional<pair<int,int>> mcache=getcache(p1b,p2b,gameidx);
+	const int64_t p1stamp=lastmodified(p1);
+	const int64_t p2stamp=lastmodified(p2);
+	const optional<tuple<int64_t,int,int>> mcache=getcache(p1b,p2b,gameidx);
 	if(mcache){
-		return GameResults(true,mcache.value());
+		int64_t cachestamp;
+		int p1score,p2score;
+		tie(cachestamp,p1score,p2score)=mcache.value();
+		if(cachestamp>p1stamp&&cachestamp>p2stamp){
+			GameResults gr;
+			gr.cached=true;
+			gr.scores={p1score,p2score};
+			return gr;
+		}
 	}
 
 	ofstream gamelog(
@@ -381,7 +395,10 @@ static GameResults playgame(
 		die(reason);
 	}
 
-	return GameResults(finalscores);
+	GameResults gr;
+	gr.scores=finalscores;
+	gr.timing={players[0].timing,players[1].timing};
+	return gr;
 }
 
 const int random_numplays=3;
@@ -425,6 +442,7 @@ int main(int argc,char **argv){
 	struct ScoreItem {
 		int index=0;
 		int score=0;
+		double maxtiming=0;
 	};
 
 	vector<ScoreItem> scores(nplayers);
@@ -438,9 +456,9 @@ int main(int argc,char **argv){
 			const int multiplier=isr?1:random_numplays;
 			for(int gameidx=0;gameidx<numplays;gameidx++){
 				cout<<left<<setw(maxbaselen)<<bnames[i1]
-				    <<" vs "<<setw(maxbaselen)<<bnames[i2];
+					<<" vs "<<setw(maxbaselen)<<bnames[i2];
 				if(isr){
-				    cout<<" (game "<<gameidx+1<<"): ";
+					cout<<" (game "<<gameidx+1<<"): ";
 				} else {
 					cout<<"         : ";
 				}
@@ -460,6 +478,10 @@ int main(int argc,char **argv){
 
 				scores[i1].score+=res.scores.first*multiplier;
 				scores[i2].score+=res.scores.second*multiplier;
+				scores[i1].maxtiming=
+					max(scores[i1].maxtiming,res.timing.first);
+				scores[i2].maxtiming=
+					max(scores[i2].maxtiming,res.timing.second);
 			}
 		}
 	}
@@ -467,10 +489,20 @@ int main(int argc,char **argv){
 	sort(scores.begin(),scores.end(),
 			[](const ScoreItem &a,const ScoreItem &b){return a.score>b.score;});
 
-	cout<<right<<setw(maxnamelen)<<"Player"<<" | Score"<<endl;
-	cout<<string(maxnamelen,'-')<<"-+-"<<"--------"<<endl;
-	for(int i=0;i<nplayers;i++){
-		cout<<setw(maxnamelen)<<players[scores[i].index]
-		    <<" | "<<scores[i].score<<endl;
+	size_t maxscorelen=5;
+	for(const ScoreItem &item : scores){
+		maxscorelen=max(maxscorelen,to_string(item.score).size());
+	}
+
+	cout<<right<<setw(maxnamelen)<<"Player"<<" | "
+		<<left<<setw(maxscorelen)<<"Score"<<" | "
+		<<left<<"Max. Time"<<endl;
+	cout<<string(maxnamelen,'-')<<"-+-"
+		<<string(maxscorelen,'-')<<"-+-"
+		<<"----------"<<endl;
+	for(const ScoreItem &item : scores){
+		cout<<right<<setw(maxnamelen)<<players[item.index]<<" | "
+			<<left<<setw(maxscorelen)<<item.score<<" | "
+			<<left<<item.maxtiming<<endl;
 	}
 }
